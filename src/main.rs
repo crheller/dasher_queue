@@ -5,6 +5,7 @@ mod app;
 mod background;
 mod widgets;
 mod utils;
+mod dbsettings;
 
 use self::app::App;
 use gio::prelude::*;
@@ -69,7 +70,7 @@ fn main() {
                     Event::Closed => app.closed().await,
                     Event::Quit => gtk::main_quit(),
                 }
-            }
+            } 
         };
 
         utils::spawn(event_handler);

@@ -14,3 +14,8 @@ gtk = "0.14.3"
 libc = "0.2.104"
 users = "0.11.0"
 slotmap = { version = "1.0.6", features = ["serde"] }
+mysql = "21.0.2"
+pnet = "0.28.0"
+local-ip = { git = "https://github.com/tcr/rust-local-ip.git" }
+gtk-sys = "0.14.0"
+fomat-macros = "0.3.1"
