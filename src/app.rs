@@ -2,7 +2,7 @@ use std::string;
 
 use crate::{Event, FieldEntity};
 use crate::background::BgEvent;
-use crate::widgets::{StringField, DropdownField};
+use crate::widgets::{DropdownField, CheckboxField, FileBrowserField};
 use crate::utils::*;
 
 use async_channel::Sender;
@@ -10,14 +10,18 @@ use glib::clone;
 use glib::SourceId;
 use gtk::prelude::*;
 use slotmap::SlotMap;
+use gtk::{FileChooserAction, FileChooserDialog, FileFilter};
+use gtk::ResponseType::{Accept, Cancel};
 
 
 pub struct App {
     // Grid that organizes all the fields into the GUI
     pub container: gtk::Grid,
+    pub window: gtk::ApplicationWindow,
     //Do I need this thing to manage fields, or not?
-    pub fields: SlotMap<FieldEntity, StringField>,
+    pub fields: SlotMap<FieldEntity, FileBrowserField>,
     pub dfields: SlotMap<FieldEntity, DropdownField>,
+    pub cfields: SlotMap<FieldEntity, CheckboxField>,
     // my own attempt set up the expt fields (can these go in pub fields somehow?)
     pub experiment_class: String,
     pub experiment_rig: String,
@@ -69,8 +73,10 @@ impl App {
         // set up default values incase query returns None
         let mut app = Self {
             container,
+            window: _window,
             fields: SlotMap::with_key(),
             dfields: SlotMap::with_key(),
+            cfields: SlotMap::with_key(),
             experiment_class: String::from("proline"),
             experiment_rig: String::from("RoLi-11"),
             fish_id: String::from("expert-parakeet"),
@@ -90,36 +96,43 @@ impl App {
 
         //hijack in the insert_row function for making fields
         //app.insert_row(0);
-        app.insert_str_field(0,String::from("fish_id"), String::from(&app.fish_id));
-        let expt_ops = get_field_options(String::from("experiment_class"));
-        app.insert_dropdown_field(1, String::from("experiment_class"), &expt_ops);
+        //app.insert_str_field(0,String::from("fish_id"), String::from(&app.fish_id));
+
+        // fill drop downs
+        let user_ops = get_field_options("username".to_string(), "users".to_string());
+        app.insert_dropdown_field(0, "username".to_string(), &user_ops, &app.addedby.to_string());
         
+        let rig_ops = get_field_options("experiment_rig".to_string(), "data".to_string());
+        app.insert_dropdown_field(1, "experiment_rig".to_string(), &rig_ops, &app.experiment_rig.to_string());
+
+        let expt_ops = get_field_options("experiment_class".to_string(), "data".to_string());
+        app.insert_dropdown_field(2, String::from("experiment_class"), &expt_ops, &app.experiment_class.to_string());
+
+        let chamber_ops = get_field_options("chamber_id".to_string(), "chambers".to_string());
+        app.insert_dropdown_field(3, "chamber_id".to_string(), &chamber_ops, &app.chamber_id.to_string());
+        
+        let fish_ops = get_field_options("fish_id".to_string(), "data".to_string());
+        app.insert_dropdown_field(4, "fish_id".to_string(), &fish_ops, &"new".to_string());
+
+        let geno_ops = get_field_options("genotype".to_string(), "fish".to_string());
+        app.insert_dropdown_field(5, "fish_genotype".to_string(), &geno_ops, &app.fish_genotype.to_string());
+
+        let dpf_ops = get_field_options("dpf".to_string(), "fish".to_string());
+        app.insert_dropdown_field(6, "fish_dpf".to_string(), &dpf_ops, &app.fish_dpf.to_string());
+
+        // checkbox for imaging
+        app.insert_checkbox(7, "imaging".to_string(), app.imaging.clone());
+
+        // checkbox for hardware test
+        app.insert_checkbox(8, "hardware_test".to_string(), app.hardware_test.clone());
+
+        // browse for protocol file
+        app.insert_filebrowser(9);
+
         app
     }
 
-    fn insert_str_field(&mut self, row: i32, fieldname: String, value: String) -> FieldEntity {
-        // Increment the row value of each Task is below the new row
-        for field in self.fields.values_mut() {
-            if field.row >= row {
-                field.row += 1;
-            }
-        }
-
-        self.container.insert_row(row);
-        let field = StringField::new(row, fieldname, value);
-
-        self.container.attach(&field.label, 0, row, 1, 1);
-        self.container.attach(&field.entry, 1, row, 1, 1);
-
-        field.entry.grab_focus();
-
-        let entity = self.fields.insert(field);
-        self.fields[entity].connect(self.tx.clone(), entity);
-
-        return entity;
-    }
-
-    fn insert_dropdown_field(&mut self, row: i32, fieldname: String, value_options: &Vec<String>) -> FieldEntity {
+    fn insert_dropdown_field(&mut self, row: i32, fieldname: String, value_options: &Vec<String>, default: &String) -> FieldEntity {
         // Increment the row value of each Task is below the new row
         for field in self.fields.values_mut() {
             if field.row >= row {
@@ -133,7 +146,7 @@ impl App {
         }
 
         self.container.insert_row(row);
-        let field = DropdownField::new(row, fieldname);
+        let field = DropdownField::new(row, fieldname, default);
 
         self.container.attach(&field.label, 0, row, 1, 1);
         self.container.attach(&field.options, 1, row, 1, 1);
@@ -141,7 +154,7 @@ impl App {
         for option in value_options {
             field.options.append(Some(&option), &option);
         };
-        //field.options.selection();
+        //field.options.set_text("Arial");
         let entity = self.dfields.insert(field);
         self.dfields[entity].connect(self.tx.clone(), entity);
 
@@ -149,6 +162,32 @@ impl App {
         // let mut stupid = gtk::Entry::new();
         // stupid.set_text("Some text");
         // stupid.get_buffer();
+
+        return entity;
+    }
+
+    fn insert_checkbox(&mut self, row: i32, fieldname: String, default: bool) -> FieldEntity {
+        self.container.insert_row(row);
+        let field = CheckboxField::new(row, fieldname, default);
+
+        self.container.attach(&field.label, 0, row, 1, 1);
+        self.container.attach(&field.checkbox, 1, row, 1, 1);
+
+        let entity = self.cfields.insert(field);
+        //self.cfields[entity].connect(self.tx.clone(), entity);
+
+        return entity;
+    }
+
+    fn insert_filebrowser(&mut self, row: i32) -> FieldEntity {
+        self.container.insert_row(row);
+        let field = FileBrowserField::new(row);
+
+        self.container.attach(&field.button, 0, row, 1, 1);
+        self.container.attach(&field.file_selection, 1, row, 1, 1);
+
+        let entity = self.fields.insert(field);
+        self.fields[entity].connect(self.tx.clone(), entity);
 
         return entity;
     }
@@ -181,6 +220,27 @@ impl App {
 
     pub fn modified(&mut self) {
         let tx = self.tx.clone();
+    }
+
+    pub fn open_file_browser(&mut self, entity: FieldEntity) {
+        let tx = self.tx.clone();
+        let mut file = None;
+        let dialog = FileChooserDialog::new(Some("Select file"), 
+        Some(&self.window), FileChooserAction::Open);
+        dialog.add_button("Cancel", Cancel);
+        dialog.add_button("Accept", Accept);
+        let result = dialog.run();
+        if result == Accept {
+            file = dialog.filename();
+        }
+        let mut field = self.fields.get(entity);
+        let fstring = file.unwrap().into_os_string().into_string().unwrap();
+        field.unwrap().file_selection.set_text(&fstring);
+        //file.unwrap();
+        unsafe {
+            dialog.destroy();
+        }
+        
     }
 
     pub async fn closed(&mut self) {

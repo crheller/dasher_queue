@@ -24,6 +24,8 @@ pub enum Event {
     // we can send it to the DB
     EntryUpdate,
 
+    LoadFile(FieldEntity),
+
     Closed,
 
     Quit
@@ -67,6 +69,7 @@ fn main() {
             while let Ok(event) = rx.recv().await {
                 match event {
                     Event::EntryUpdate => app.modified(),
+                    Event::LoadFile(entity) => app.open_file_browser(entity),
                     Event::Closed => app.closed().await,
                     Event::Quit => gtk::main_quit(),
                 }
@@ -75,7 +78,7 @@ fn main() {
 
         utils::spawn(event_handler);
     });
-
+    
     // This last step performs the same duty as gtk::main()
     //app.run(&[]);
     app.run();

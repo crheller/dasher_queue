@@ -23,12 +23,15 @@ pub fn get_conn() -> PooledConn {
     // open db connection
     let mut builder = OptsBuilder::new();
     let dboptions = get_db_settings();
+    let five_seconds = std::time::Duration::new(5, 0);
     builder = builder.ip_or_hostname(Some(dboptions.host))
             .db_name(Some(dboptions.dbname))
             .user(Some(dboptions.user))
-            .pass(Some(dboptions.pass));
+            .pass(Some(dboptions.pass))
+            .read_timeout(Some(five_seconds))
+            .write_timeout(Some(five_seconds));
     let pool = Pool::new(builder).unwrap();
-    let mut conn = pool.get_conn().unwrap();
+    let conn = pool.get_conn().unwrap();
     return conn;
 }
 
@@ -76,9 +79,9 @@ pub fn get_last_data_entry(userid: std::ffi::OsString, rig: String) -> Option<Da
     }
 }
 
-pub fn get_field_options(field: String) -> Vec<String> {
+pub fn get_field_options(field: String, db: String) -> Vec<String> {
     let mut conn = get_conn();
-    let sql_query = format!("SELECT DISTINCT {} FROM data", field);
+    let sql_query = format!("SELECT DISTINCT {} FROM {}", field, db);
     let res:Vec<String> = conn.query(sql_query).unwrap();
     return res
 }
