@@ -2,7 +2,7 @@ use std::string;
 
 use crate::{Event, FieldEntity};
 use crate::background::BgEvent;
-use crate::widgets::{DropdownField, CheckboxField, FileBrowserField};
+use crate::widgets::{DropdownField, CheckboxField, FileBrowserField, SaveButton};
 use crate::utils::*;
 
 use async_channel::Sender;
@@ -12,7 +12,8 @@ use gtk::prelude::*;
 use slotmap::SlotMap;
 use gtk::{FileChooserAction, FileChooserDialog, FileFilter};
 use gtk::ResponseType::{Accept, Cancel};
-
+use dialog::DialogBox;
+use dialog::Choice;
 
 pub struct App {
     // Grid that organizes all the fields into the GUI
@@ -26,6 +27,7 @@ pub struct App {
     pub experiment_class: String,
     pub experiment_rig: String,
     pub fish_id: String,
+    pub fish_idx: i32,
     pub fish_genotype: String,
     pub fish_dpf: i32,
     pub chamber_id: String,
@@ -54,7 +56,7 @@ impl App {
         let _window = cascade! {
             gtk::ApplicationWindow::new(app);
             ..set_title("dasherQueue");
-            ..set_default_size(400, 600);
+            ..set_default_size(400, 400);
             ..add(&container);
             ..connect_delete_event(clone!(@strong tx, @strong container => move |win, _| {
                 // Detach to preserve widgets after destruction of window
@@ -80,6 +82,7 @@ impl App {
             experiment_class: String::from("proline"),
             experiment_rig: String::from("RoLi-11"),
             fish_id: String::from("expert-parakeet"),
+            fish_idx: 1i32,
             fish_genotype: String::from("Tg(elavl3:H2B-GCaMP6s+/+)"),
             fish_dpf: 8i32,
             chamber_id: String::from("my_chamber"),
@@ -114,20 +117,25 @@ impl App {
         let fish_ops = get_field_options("fish_id".to_string(), "data".to_string());
         app.insert_dropdown_field(4, "fish_id".to_string(), &fish_ops, &"new".to_string());
 
+        let fish_idx = get_field_options("fish_idx".to_string(), "data".to_string());
+        app.insert_dropdown_field(5, "fish_idx".to_string(), &fish_idx, &app.fish_idx.to_string());
+
         let geno_ops = get_field_options("genotype".to_string(), "fish".to_string());
-        app.insert_dropdown_field(5, "fish_genotype".to_string(), &geno_ops, &app.fish_genotype.to_string());
+        app.insert_dropdown_field(6, "fish_genotype".to_string(), &geno_ops, &app.fish_genotype.to_string());
 
         let dpf_ops = get_field_options("dpf".to_string(), "fish".to_string());
-        app.insert_dropdown_field(6, "fish_dpf".to_string(), &dpf_ops, &app.fish_dpf.to_string());
+        app.insert_dropdown_field(7, "fish_dpf".to_string(), &dpf_ops, &app.fish_dpf.to_string());
 
         // checkbox for imaging
-        app.insert_checkbox(7, "imaging".to_string(), app.imaging.clone());
+        app.insert_checkbox(8, "imaging".to_string(), app.imaging.clone());
 
         // checkbox for hardware test
-        app.insert_checkbox(8, "hardware_test".to_string(), app.hardware_test.clone());
+        app.insert_checkbox(9, "hardware_test".to_string(), app.hardware_test.clone());
 
         // browse for protocol file
-        app.insert_filebrowser(9);
+        app.insert_filebrowser(10);
+
+        app.build_save_button(11);
 
         app
     }
@@ -154,6 +162,11 @@ impl App {
         for option in value_options {
             field.options.append(Some(&option), &option);
         };
+        if default == "new" {
+            field.options.prepend(Some(&default), &default);
+        }
+        field.options.set_active_id(Some(default));
+        
         //field.options.set_text("Arial");
         let entity = self.dfields.insert(field);
         self.dfields[entity].connect(self.tx.clone(), entity);
@@ -192,6 +205,14 @@ impl App {
         return entity;
     }
 
+    fn build_save_button(&mut self, row: i32) {
+        self.container.insert_row(row);
+        let mut save = SaveButton::new(row);
+
+        self.container.attach(&save.button, 0, row, 1, 1);
+        save.connect(self.tx.clone());
+    }
+
     fn fill_defaults(&mut self) {
         // first, find the rig name to get default values
         // let local_ip = local_ip::get().unwrap(); 
@@ -218,8 +239,59 @@ impl App {
         }
     }
 
-    pub fn modified(&mut self) {
+    pub fn modified(&mut self, entity: FieldEntity) {
         let tx = self.tx.clone();
+        let field: &str = &self.dfields.get(entity).unwrap().label.text().to_string();
+        let active_value = self.dfields.get(entity).unwrap().options.active_text().unwrap().to_string();
+        match field {
+            "experiment_class" => self.experiment_class = active_value,
+            "experiment_rig" => self.experiment_rig = active_value,
+            "fish_id" => {
+                // specialized code here in order to increment fish_idx in a smart way
+                self.fish_id = active_value;
+                if self.fish_id == "new" {
+                    self.fish_idx = 1;
+                } else {
+                    let sql = format!("SELECT fish_idx FROM data WHERE fish_id='{}' ORDER BY fish_idx DESC", self.fish_id);
+                    let filt_ops = query(sql);
+                    self.fish_idx = filt_ops[0].parse::<i32>().unwrap() + 1;    
+                }
+                let all_ops = get_field_options("fish_idx".to_string(), "data".to_string());
+                for k in self.dfields.keys() {
+                    let fieldname = self.dfields.get(k).unwrap().label.text().to_string();
+                    if fieldname == "fish_idx" {
+                        let mut addkey = true;
+                        for idx_op in &all_ops {
+                            if idx_op == &self.fish_idx.to_string() {
+                                addkey = false
+                            }
+                        }
+                        if addkey {
+                            self.dfields.get(k).unwrap().options.append(Some(&self.fish_idx.to_string()), &self.fish_idx.to_string());
+                        }
+                        
+                        self.dfields.get(k).unwrap().options.set_active_id(Some(&self.fish_idx.to_string()));
+                    }
+                }
+            },
+            "fish_idx" => self.fish_idx = active_value.parse::<i32>().unwrap(),
+            "chamber_id" => self.chamber_id = active_value,
+            "username" => self.addedby = active_value,
+            "fish_dpf" => self.fish_dpf = active_value.parse::<i32>().unwrap(),
+            "fish_genotype" => self.fish_genotype = active_value,
+            _ => println!("Condition not specified. Not updating value")
+        }
+    }
+
+    pub fn toggle(&mut self, entity: FieldEntity) {
+        let tx = self.tx.clone();
+        let field: &str = &self.dfields.get(entity).unwrap().label.text().to_string();
+        let active_value = self.cfields.get(entity).unwrap().checkbox.is_active();
+        match field {
+            "imaging" => self.imaging = active_value,
+            "hardware_test" => self.hardware_test = active_value,
+            _ => println!("Condition not specified. Not updating value")
+        }
     }
 
     pub fn open_file_browser(&mut self, entity: FieldEntity) {
@@ -233,9 +305,11 @@ impl App {
         if result == Accept {
             file = dialog.filename();
         }
-        let mut field = self.fields.get(entity);
+        println!("{:?}", entity);
+        let field = self.fields.get(entity);
         let fstring = file.unwrap().into_os_string().into_string().unwrap();
         field.unwrap().file_selection.set_text(&fstring);
+        self.protocol_file = fstring; // update App field for easy access later
         //file.unwrap();
         unsafe {
             dialog.destroy();
@@ -243,7 +317,28 @@ impl App {
         
     }
 
+    pub fn save_to_db(&mut self) {
+
+        let choice = dialog::Question::new("Create new experiment?")
+                .title("Warning")
+                .show()
+                .expect("Could not display dialog box");
+        
+        println!("{:?}", Some(choice).unwrap());
+        if Some(choice).unwrap() == Choice::Yes {
+            // save all fields to database
+            println!("Creating new experiment in trackerdb. See status at http://...");
+            save_to_db(self);
+            // start dasher using the specified protocol
+            println!("Starting dasher...");   
+        } else {
+            // don't do anything
+        }
+     
+    }
+
     pub async fn closed(&mut self) {
+        //.save_to_db().await;
         let _ = self.btx.send(BgEvent::Quit).await;
     }
 }

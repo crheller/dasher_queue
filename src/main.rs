@@ -22,9 +22,13 @@ slotmap::new_key_type! {
 pub enum Event {
     // Update the information stored in this "entry" so that 
     // we can send it to the DB
-    EntryUpdate,
+    EntryUpdate(FieldEntity),
+
+    ToggleUpdate(FieldEntity),
 
     LoadFile(FieldEntity),
+
+    Save,
 
     Closed,
 
@@ -68,8 +72,10 @@ fn main() {
         let event_handler = async move {
             while let Ok(event) = rx.recv().await {
                 match event {
-                    Event::EntryUpdate => app.modified(),
+                    Event::EntryUpdate(entity) => app.modified(entity),
+                    Event::ToggleUpdate(entity) => app.toggle(entity),
                     Event::LoadFile(entity) => app.open_file_browser(entity),
+                    Event::Save => app.save_to_db(),
                     Event::Closed => app.closed().await,
                     Event::Quit => gtk::main_quit(),
                 }

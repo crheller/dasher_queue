@@ -2,6 +2,9 @@ use std::future::Future;
 use mysql::*;
 use mysql::prelude::*;
 use crate::dbsettings::*;
+use crate::App;
+extern crate gtk;
+use gtk::prelude::*;
 
 // threading tools
 pub fn thread_context() -> glib::MainContext {
@@ -84,4 +87,31 @@ pub fn get_field_options(field: String, db: String) -> Vec<String> {
     let sql_query = format!("SELECT DISTINCT {} FROM {}", field, db);
     let res:Vec<String> = conn.query(sql_query).unwrap();
     return res
+}
+
+pub fn query(sql: String) -> Vec<String> {
+    let mut conn = get_conn();
+    let res:Vec<String> = conn.query(sql).unwrap();
+    return res
+}
+
+pub fn save_to_db(app: &mut App) {
+    let mut conn = get_conn();
+
+    let sql = format!("INSERT INTO data 
+                (experiment_class, experiment_id, fish_id, fish_idx, chamber_id, imaging, hardware_test, addedby)
+            VALUES
+                ({}, {}, {}, {}, {}, {}, {}, {})", 
+                app.experiment_class, 
+                app.experiment_rig, 
+                app.fish_id, 
+                app.fish_idx,
+                app.chamber_id, 
+                app.imaging, 
+                app.hardware_test, 
+                app.addedby);
+    println!("sql command: \n{}", sql);
+
+    // get field values
+    //app.dfields.get(1).unwrap().options.active_text();
 }
