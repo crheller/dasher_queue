@@ -1,4 +1,4 @@
-use crate::{utils::spawn, Event, background::BgEvent, FieldEntity, App};
+use crate::{utils::spawn, Event, FieldEntity};
 use async_channel::Sender;
 use glib::{clone, SignalHandlerId};
 use gtk::prelude::*;
@@ -13,7 +13,7 @@ pub struct DropdownField {
 }
 
 impl DropdownField {
-    pub fn new(row: i32, fieldname: String, default: &String) -> Self {
+    pub fn new(row: i32, fieldname: String) -> Self {
         Self {
             options: cascade! {
                 gtk::ComboBoxText::with_entry(); // with entry too
@@ -43,13 +43,6 @@ impl DropdownField {
         self.entry_signal = Some(signal);
 
     }
-    
-    pub fn set_text(&mut self, text: &str) {
-        let signal = self.entry_signal.as_ref().unwrap();
-        self.options.block_signal(signal);
-        //self.options.set_text(text);
-        self.options.unblock_signal(signal);
-    }
 }
 
 pub struct CheckboxField {
@@ -77,16 +70,6 @@ impl CheckboxField {
                 ..show();
             },
         }
-    }
-
-    pub fn connect(&mut self, tx: Sender<Event>, entity: FieldEntity) {
-        let signal = self.checkbox.connect_toggled(clone!(@strong tx => move |_| {
-            let tx = tx.clone();
-            spawn(async move {
-                let _ = tx.send(Event::ToggleUpdate(entity)).await;
-            });
-        }));
-        self.entry_signal = Some(signal);
     }
 }
 

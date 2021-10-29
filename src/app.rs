@@ -1,5 +1,3 @@
-use std::string;
-
 use crate::{Event, FieldEntity};
 use crate::background::BgEvent;
 use crate::widgets::{DropdownField, CheckboxField, FileBrowserField, SaveButton};
@@ -7,10 +5,9 @@ use crate::utils::*;
 
 use async_channel::Sender;
 use glib::clone;
-use glib::SourceId;
 use gtk::prelude::*;
 use slotmap::SlotMap;
-use gtk::{FileChooserAction, FileChooserDialog, FileFilter};
+use gtk::{FileChooserAction, FileChooserDialog};
 use gtk::ResponseType::{Accept, Cancel};
 use dialog::DialogBox;
 use dialog::Choice;
@@ -154,7 +151,7 @@ impl App {
         }
 
         self.container.insert_row(row);
-        let field = DropdownField::new(row, fieldname, default);
+        let field = DropdownField::new(row, fieldname);
 
         self.container.attach(&field.label, 0, row, 1, 1);
         self.container.attach(&field.options, 1, row, 1, 1);
@@ -240,7 +237,6 @@ impl App {
     }
 
     pub fn modified(&mut self, entity: FieldEntity) {
-        let tx = self.tx.clone();
         let field: &str = &self.dfields.get(entity).unwrap().label.text().to_string();
         let active_value = self.dfields.get(entity).unwrap().options.active_text().unwrap().to_string();
         match field {
@@ -284,7 +280,6 @@ impl App {
     }
 
     pub fn toggle(&mut self, entity: FieldEntity) {
-        let tx = self.tx.clone();
         let field: &str = &self.dfields.get(entity).unwrap().label.text().to_string();
         let active_value = self.cfields.get(entity).unwrap().checkbox.is_active();
         match field {
@@ -295,7 +290,6 @@ impl App {
     }
 
     pub fn open_file_browser(&mut self, entity: FieldEntity) {
-        let tx = self.tx.clone();
         let mut file = None;
         let dialog = FileChooserDialog::new(Some("Select file"), 
         Some(&self.window), FileChooserAction::Open);

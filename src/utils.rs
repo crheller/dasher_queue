@@ -96,7 +96,7 @@ pub fn query(sql: String) -> Vec<String> {
 }
 
 pub fn save_to_db(app: &mut App) {
-    let mut conn = get_conn();
+    let conn = get_conn();
 
     let sql = format!("INSERT INTO data 
                 (experiment_class, experiment_id, fish_id, fish_idx, chamber_id, imaging, hardware_test, addedby)

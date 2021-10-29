@@ -1,9 +1,5 @@
 use crate::Event;
 use async_channel::{Receiver, Sender};
-use std::path::{Path, PathBuf};
-use std::time::SystemTime;
-use std::{fs, io};
-use crate::app::App;
 
 
 pub enum BgEvent {
