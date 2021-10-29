@@ -160,18 +160,14 @@ impl App {
             field.options.append(Some(&option), &option);
         };
         if default == "new" {
-            field.options.prepend(Some(&default), &default);
+            field.options.append(Some(&default), &default);
         }
         field.options.set_active_id(Some(default));
         
         //field.options.set_text("Arial");
         let entity = self.dfields.insert(field);
+        self.modified(entity); // force value update on default setting
         self.dfields[entity].connect(self.tx.clone(), entity);
-
-        // dummy test
-        // let mut stupid = gtk::Entry::new();
-        // stupid.set_text("Some text");
-        // stupid.get_buffer();
 
         return entity;
     }
@@ -246,6 +242,7 @@ impl App {
                 // specialized code here in order to increment fish_idx in a smart way
                 self.fish_id = active_value;
                 if self.fish_id == "new" {
+                    println!("HERE {}", self.fish_id);
                     self.fish_idx = 1;
                 } else {
                     let sql = format!("SELECT fish_idx FROM data WHERE fish_id='{}' ORDER BY fish_idx DESC", self.fish_id);
@@ -322,7 +319,7 @@ impl App {
         if Some(choice).unwrap() == Choice::Yes {
             // save all fields to database
             println!("Creating new experiment in trackerdb. See status at http://...");
-            save_to_db(self);
+            save_to_database(self);
             // start dasher using the specified protocol
             println!("Starting dasher...");   
         } else {

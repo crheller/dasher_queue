@@ -19,7 +19,6 @@ impl DropdownField {
                 gtk::ComboBoxText::with_entry(); // with entry too
                 //..insert_text(0, default); // is new is selected
                 ..set_hexpand(true);
-                ..set_has_default(true);
                 ..show();
             },
             entry_signal: None,

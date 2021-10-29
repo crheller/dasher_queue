@@ -95,11 +95,22 @@ pub fn query(sql: String) -> Vec<String> {
     return res
 }
 
-pub fn save_to_db(app: &mut App) {
+pub fn save_to_database(app: &mut App) {
     let conn = get_conn();
 
+    // figure out if we need a new fish name
+    println!("{}", app.fish_id);
+    if app.fish_id == "new" {
+        let sql = format!("INSERT INTO fish (genotype, dpf, addedby) 
+        VALUES ({}, {}, {})",
+        app.fish_genotype,
+        app.fish_dpf,
+        app.addedby);
+        println!("sql command: \n{}", sql);
+    }
+
     let sql = format!("INSERT INTO data 
-                (experiment_class, experiment_id, fish_id, fish_idx, chamber_id, imaging, hardware_test, addedby)
+                (experiment_class, experiment_rig, fish_id, fish_idx, chamber_id, imaging, hardware_test, addedby)
             VALUES
                 ({}, {}, {}, {}, {}, {}, {}, {})", 
                 app.experiment_class, 
